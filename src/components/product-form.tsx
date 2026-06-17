@@ -29,15 +29,35 @@ export function ProductForm({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    setError,
+    formState: { errors, isSubmitting, submitCount },
   } = useForm<ProductFormInput, unknown, ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: { ...emptyProductForm, ...defaultValues },
     mode: "onTouched",
   });
 
+  const errorCount = Object.keys(errors).filter((key) => key !== "root").length;
+
+  async function submit(values: ProductFormValues) {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      setError("root", {
+        message: error instanceof Error ? error.message : "Couldn't save the product. Try again.",
+      });
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-5 sm:grid-cols-6">
+    <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-5 sm:grid-cols-6">
+      {(errors.root || (submitCount > 0 && errorCount > 0)) && (
+        <div role="alert" className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm sm:col-span-6">
+          {errors.root?.message ??
+            `Fix ${errorCount} field${errorCount === 1 ? "" : "s"} before saving.`}
+        </div>
+      )}
+
       <Field label="Product name" error={errors.title?.message} className="sm:col-span-4">
         {(id, describedBy) => (
           <input id={id} aria-describedby={describedBy} {...register("title")} className={inputClass(errors.title)} placeholder="Walnut desk lamp" />
