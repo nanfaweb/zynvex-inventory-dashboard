@@ -1,24 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProductForm } from "@/components/product-form";
 import { KNOWN_CATEGORIES } from "@/lib/categories";
+import { productFromForm } from "@/lib/local-product";
 import type { ProductFormValues } from "@/lib/product-schema";
+import { useCatalogStore } from "@/store/catalog-store";
 
 export function NewProduct() {
-  const [saved, setSaved] = useState<ProductFormValues | null>(null);
+  const router = useRouter();
+  const addLocalProduct = useCatalogStore((state) => state.addLocalProduct);
+  const select = useCatalogStore((state) => state.select);
 
-  if (saved) {
-    return (
-      <div className="space-y-4">
-        <p className="font-semibold">Validated payload</p>
-        <pre className="overflow-x-auto rounded-lg bg-surface-2 p-4 font-mono text-xs">{JSON.stringify(saved, null, 2)}</pre>
-        <button type="button" onClick={() => setSaved(null)} className="text-sm font-semibold text-accent">
-          Add another
-        </button>
-      </div>
-    );
+  function handleSubmit(values: ProductFormValues) {
+    const product = productFromForm(values);
+    addLocalProduct(product);
+    select(product.id);
+    router.push("/");
   }
 
-  return <ProductForm categories={[...KNOWN_CATEGORIES]} onSubmit={setSaved} />;
+  return <ProductForm categories={[...KNOWN_CATEGORIES]} onSubmit={handleSubmit} onCancel={() => router.push("/")} />;
 }
