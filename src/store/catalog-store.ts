@@ -1,4 +1,5 @@
 import { create, type StateCreator } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { defaultFilters, type Filters, type SortKey } from "@/lib/filter";
 import type { ParseIssue, Product, StockStatus } from "@/lib/types";
 
@@ -43,7 +44,7 @@ export interface UiSlice {
 
 export type CatalogStore = CatalogSlice & FilterSlice & UiSlice;
 
-type Slice<T> = StateCreator<CatalogStore, [], [], T>;
+type Slice<T> = StateCreator<CatalogStore, [["zustand/persist", unknown]], [], T>;
 
 const createCatalogSlice: Slice<CatalogSlice> = (set) => ({
   catalog: [],
@@ -84,8 +85,26 @@ const createUiSlice: Slice<UiSlice> = (set) => ({
   select: (selectedId) => set({ selectedId }),
 });
 
-export const useCatalogStore = create<CatalogStore>()((...args) => ({
-  ...createCatalogSlice(...args),
-  ...createFilterSlice(...args),
-  ...createUiSlice(...args),
-}));
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+export const useCatalogStore = create<CatalogStore>()(
+  persist(
+    (...args) => ({
+      ...createCatalogSlice(...args),
+      ...createFilterSlice(...args),
+      ...createUiSlice(...args),
+    }),
+    {
+      name: "stockroom:catalog",
+      version: 1,
+      // Only things the user created or chose. The live catalog is always refetched.
+      partialize: (state) => ({ localProducts: state.localProducts, view: state.view }),
+      storage: createJSONStorage(() => localStorage, {
+        // Products carry Date objects; JSON turns them into ISO strings, so turn them back.
+        reviver: (_key, value) => (typeof value === "string" && ISO_DATE.test(value) ? new Date(value) : value),
+      }),
+      // Rehydrated from <StoreHydrator /> after mount, so server and first client render match.
+      skipHydration: true,
+    },
+  ),
+);
