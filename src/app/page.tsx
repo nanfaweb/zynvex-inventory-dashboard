@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { ErrorPanel } from "@/components/ui/error-panel";
+import { ProductGridSkeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/format";
 import { useCatalogStore } from "@/store/catalog-store";
 
@@ -23,29 +25,34 @@ export default function Home() {
         </Link>
       </div>
       <p className="mt-2 text-sm text-muted" aria-live="polite">
-        {status === "loading" && (retryAttempt > 0 ? `Retrying (attempt ${retryAttempt + 1})…` : "Loading catalog…")}
+        {status === "loading" && (retryAttempt > 0 ? `Connection is slow, retrying (attempt ${retryAttempt + 1} of 3)…` : "Loading catalog…")}
         {status === "ready" && `${products.length} products`}
-        {status === "error" && (
-          <>
-            {error}{" "}
-            <button type="button" className="font-semibold text-accent" onClick={() => loadCatalog({ force: true })}>
-              Retry
-            </button>
-          </>
-        )}
       </p>
-      <ul className="mt-6 divide-y divide-line rounded-2xl border border-line bg-surface">
-        {products.map((product) => (
-          <li key={product.id} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <p className="font-semibold">{product.title}</p>
-              <p className="font-mono text-xs text-muted">
-                {product.sku} · {product.stock} in stock · {formatMoney(product.salePrice)}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+
+      <div className="mt-6">
+        {status === "error" && (
+          <ErrorPanel
+            title="Couldn't load the catalog"
+            message={error ?? "Unknown error"}
+            onRetry={() => void loadCatalog({ force: true })}
+          />
+        )}
+        {(status === "loading" || status === "idle") && <ProductGridSkeleton count={6} />}
+        {status === "ready" && (
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+            {products.map((product) => (
+              <li key={product.id} className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p className="font-semibold">{product.title}</p>
+                  <p className="font-mono text-xs text-muted">
+                    {product.sku} · {product.stock} in stock · {formatMoney(product.salePrice)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }
