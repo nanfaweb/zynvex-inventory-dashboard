@@ -1,5 +1,6 @@
 import { create, type StateCreator } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { ApiError, fetchCatalog, withRetry } from "@/lib/api";
 import { defaultFilters, type Filters, type SortKey } from "@/lib/filter";
 import type { ParseIssue, Product, StockStatus } from "@/lib/types";
 
@@ -14,6 +15,9 @@ export interface CatalogSlice {
   error: string | null;
   issues: ParseIssue[];
   loadedAt: number | null;
+  /** Which automatic retry is running (0 when not retrying). */
+  retryAttempt: number;
+  loadCatalog: (options?: { force?: boolean }) => Promise<void>;
   setCatalog: (products: Product[], issues: ParseIssue[]) => void;
   setStatus: (status: LoadStatus, error?: string | null) => void;
   addLocalProduct: (product: Product) => void;
@@ -46,14 +50,38 @@ export type CatalogStore = CatalogSlice & FilterSlice & UiSlice;
 
 type Slice<T> = StateCreator<CatalogStore, [["zustand/persist", unknown]], [], T>;
 
-const createCatalogSlice: Slice<CatalogSlice> = (set) => ({
+let inFlight: Promise<void> | null = null;
+
+const createCatalogSlice: Slice<CatalogSlice> = (set, get) => ({
   catalog: [],
   localProducts: [],
   status: "idle",
   error: null,
   issues: [],
   loadedAt: null,
-  setCatalog: (catalog, issues) => set({ catalog, issues, status: "ready", error: null, loadedAt: Date.now() }),
+  retryAttempt: 0,
+  loadCatalog: ({ force = false } = {}) => {
+    // Several components can ask for the catalog at once; share one request.
+    if (inFlight) return inFlight;
+    if (!force && get().status === "ready") return Promise.resolve();
+
+    set({ status: "loading", error: null, retryAttempt: 0 });
+    inFlight = withRetry(() => fetchCatalog(), {
+      onRetry: (attempt) => set({ retryAttempt: attempt }),
+    })
+      .then(({ products, issues }) => get().setCatalog(products, issues))
+      .catch((error: unknown) => {
+        const message =
+          error instanceof ApiError ? error.message : "Something went wrong while loading the catalog";
+        set({ status: "error", error: message, retryAttempt: 0 });
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    return inFlight;
+  },
+  setCatalog: (catalog, issues) =>
+    set({ catalog, issues, status: "ready", error: null, loadedAt: Date.now(), retryAttempt: 0 }),
   setStatus: (status, error = null) => set({ status, error }),
   addLocalProduct: (product) => set((state) => ({ localProducts: [product, ...state.localProducts] })),
   removeLocalProduct: (id) =>
