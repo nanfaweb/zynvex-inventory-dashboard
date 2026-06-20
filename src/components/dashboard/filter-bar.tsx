@@ -8,6 +8,7 @@ import type { StockStatus } from "@/lib/types";
 import { useCatalogStore } from "@/store/catalog-store";
 
 const TAG_PREVIEW = 14;
+const MOBILE_TAG_PREVIEW = 6;
 const stockOptions = ["all", "in-stock", "low-stock", "out-of-stock"] as const;
 
 export function FilterBar({ resultCount }: { resultCount: number }) {
@@ -113,15 +114,17 @@ export function FilterBar({ resultCount }: { resultCount: number }) {
 
       {shownTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tags">
-          {shownTags.map(({ tag, count }) => {
+          {shownTags.map(({ tag, count }, index) => {
             const selected = filters.tags.includes(tag);
+            // On phones the preview is shorter so filters don't push products off screen.
+            const phoneHidden = !showAllTags && !selected && index >= MOBILE_TAG_PREVIEW ? "max-sm:hidden" : "";
             return (
               <button
                 key={tag}
                 type="button"
                 aria-pressed={selected}
                 onClick={() => toggleTag(tag)}
-                className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                className={`${phoneHidden} rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
                   selected ? "border-accent bg-accent text-accent-ink" : "border-line text-ink-soft hover:border-accent/50 hover:text-accent"
                 }`}
               >
@@ -130,9 +133,13 @@ export function FilterBar({ resultCount }: { resultCount: number }) {
               </button>
             );
           })}
-          {tagCounts.length > TAG_PREVIEW && (
-            <button type="button" onClick={() => setShowAllTags((v) => !v)} className="px-2 py-1 text-xs font-bold text-accent hover:underline">
-              {showAllTags ? "Fewer tags" : `+${tagCounts.length - TAG_PREVIEW} more`}
+          {tagCounts.length > MOBILE_TAG_PREVIEW && (
+            <button
+              type="button"
+              onClick={() => setShowAllTags((v) => !v)}
+              className={`px-2 py-1 text-xs font-bold text-accent hover:underline ${tagCounts.length <= TAG_PREVIEW ? "sm:hidden" : ""}`}
+            >
+              {showAllTags ? "Fewer tags" : `All ${tagCounts.length} tags`}
             </button>
           )}
         </div>

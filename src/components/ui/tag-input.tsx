@@ -16,15 +16,37 @@ type TagInputProps = {
 export function TagInput({ id, value, onChange, onBlur, max = 8, invalid, describedBy, placeholder }: TagInputProps) {
   const [draft, setDraft] = useState("");
 
+  function normalise(raw: string) {
+    return raw.trim().toLowerCase().replace(/\s+/g, "-");
+  }
+
   function commit(raw: string) {
-    const tag = raw.trim().toLowerCase().replace(/\s+/g, "-");
+    commitMany([raw]);
     setDraft("");
-    if (!tag || value.includes(tag) || value.length >= max) return;
-    onChange([...value, tag]);
+  }
+
+  function commitMany(parts: string[]) {
+    const next = [...value];
+    for (const part of parts) {
+      const tag = normalise(part);
+      if (tag && !next.includes(tag) && next.length < max) next.push(tag);
+    }
+    if (next.length !== value.length) onChange(next);
+  }
+
+  // Typing or pasting "a, b, c": everything before the last comma becomes tags.
+  function handleChange(text: string) {
+    if (!text.includes(",")) {
+      setDraft(text);
+      return;
+    }
+    const parts = text.split(",");
+    setDraft(parts.pop() ?? "");
+    commitMany(parts);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter" || event.key === ",") {
+    if (event.key === "Enter") {
       event.preventDefault();
       commit(draft);
     } else if (event.key === "Backspace" && draft === "" && value.length > 0) {
@@ -54,7 +76,7 @@ export function TagInput({ id, value, onChange, onBlur, max = 8, invalid, descri
       <input
         id={id}
         value={draft}
-        onChange={(event) => setDraft(event.target.value.replace(",", ""))}
+        onChange={(event) => handleChange(event.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={() => {
           if (draft) commit(draft);
