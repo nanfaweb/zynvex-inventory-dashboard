@@ -1,7 +1,8 @@
 import { create, type StateCreator } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { ApiError, fetchCatalog, withRetry } from "@/lib/api";
+import { ApiError, fetchCatalog, searchCatalog, withRetry } from "@/lib/api";
 import { defaultFilters, type Filters, type SortKey } from "@/lib/filter";
+import { createSearchCache, normaliseQuery, type SearchCache } from "@/lib/search-cache";
 import type { ParseIssue, Product, StockStatus } from "@/lib/types";
 
 /* ---------- Catalog slice: the data ---------- */
@@ -46,7 +47,26 @@ export interface UiSlice {
   select: (id: string | null) => void;
 }
 
-export type CatalogStore = CatalogSlice & FilterSlice & UiSlice;
+/* ---------- Search slice: server search with a local cache ---------- */
+
+export interface SearchState {
+  query: string;
+  status: "idle" | "searching" | "done" | "error";
+  /** Matching catalog ids, or null when no search is active. */
+  ids: string[] | null;
+  source: "cache" | "network" | null;
+  cachedAt: number | null;
+  hits: number;
+  misses: number;
+}
+
+export interface SearchSlice {
+  search: SearchState;
+  runSearch: (query: string) => Promise<void>;
+  clearSearch: () => void;
+}
+
+export type CatalogStore = CatalogSlice & FilterSlice & UiSlice & SearchSlice;
 
 type Slice<T> = StateCreator<CatalogStore, [["zustand/persist", unknown]], [], T>;
 
@@ -113,6 +133,61 @@ const createUiSlice: Slice<UiSlice> = (set) => ({
   select: (selectedId) => set({ selectedId }),
 });
 
+const idleSearch: SearchState = {
+  query: "",
+  status: "idle",
+  ids: null,
+  source: null,
+  cachedAt: null,
+  hits: 0,
+  misses: 0,
+};
+
+let searchCache: SearchCache | null = null;
+let searchController: AbortController | null = null;
+
+function getSearchCache() {
+  searchCache ??= createSearchCache({ storage: typeof window === "undefined" ? null : window.localStorage });
+  return searchCache;
+}
+
+const createSearchSlice: Slice<SearchSlice> = (set, get) => ({
+  search: idleSearch,
+  clearSearch: () => {
+    searchController?.abort();
+    set((state) => ({ search: { ...idleSearch, hits: state.search.hits, misses: state.search.misses } }));
+  },
+  runSearch: async (raw) => {
+    const query = normaliseQuery(raw);
+    if (!query) return get().clearSearch();
+
+    const cached = getSearchCache().get(query);
+    if (cached) {
+      searchController?.abort();
+      set((state) => ({
+        search: { ...state.search, query, status: "done", ids: cached.ids, source: "cache", cachedAt: cached.at, hits: state.search.hits + 1 },
+      }));
+      return;
+    }
+
+    // A newer keystroke cancels the older request, so results never arrive out of order.
+    searchController?.abort();
+    const controller = new AbortController();
+    searchController = controller;
+    set((state) => ({ search: { ...state.search, query, status: "searching", misses: state.search.misses + 1 } }));
+
+    try {
+      const { products } = await searchCatalog(query, { signal: controller.signal });
+      const ids = products.map((p) => p.id);
+      getSearchCache().set(query, ids);
+      set((state) => ({ search: { ...state.search, status: "done", ids, source: "network", cachedAt: Date.now() } }));
+    } catch (error) {
+      if (error instanceof ApiError && error.kind === "aborted") return;
+      set((state) => ({ search: { ...state.search, status: "error", ids: null, source: null } }));
+    }
+  },
+});
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
 export const useCatalogStore = create<CatalogStore>()(
@@ -121,6 +196,7 @@ export const useCatalogStore = create<CatalogStore>()(
       ...createCatalogSlice(...args),
       ...createFilterSlice(...args),
       ...createUiSlice(...args),
+      ...createSearchSlice(...args),
     }),
     {
       name: "stockroom:catalog",

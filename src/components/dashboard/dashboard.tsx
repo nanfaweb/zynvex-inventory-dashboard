@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { Logo, Sidebar } from "@/components/dashboard/sidebar";
 import { ProductCard } from "@/components/dashboard/product-card";
+import { SearchBar } from "@/components/dashboard/search-bar";
 import { StatsRow } from "@/components/dashboard/stats-row";
 import { ErrorPanel } from "@/components/ui/error-panel";
 import { SectionBoundary } from "@/components/ui/section-boundary";
@@ -33,11 +34,14 @@ export function Dashboard() {
       <Sidebar />
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-30 border-b border-line bg-canvas/85 backdrop-blur-md">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pb-1 pt-3 sm:px-6">
             <div className="lg:hidden">
               <Logo />
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1">
+              <SearchBar resultCount={visible.length} />
+            </div>
+            <div className="ml-auto flex items-center gap-2 sm:-mt-4">
               <Link
                 href="/products/new"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-bold text-accent-ink shadow-sm hover:opacity-90"
