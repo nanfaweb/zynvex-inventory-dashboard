@@ -6,6 +6,7 @@ import { Logo, Sidebar } from "@/components/dashboard/sidebar";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import { ProductCard } from "@/components/dashboard/product-card";
+import { ProductDrawer } from "@/components/dashboard/product-drawer";
 import { ProductTable } from "@/components/dashboard/product-table";
 import { SearchBar } from "@/components/dashboard/search-bar";
 import { StatsRow } from "@/components/dashboard/stats-row";
@@ -101,6 +102,7 @@ export function Dashboard() {
           </SectionBoundary>
         </main>
       </div>
+      <ProductDrawer />
     </div>
   );
 }
