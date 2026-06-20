@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { Logo, Sidebar } from "@/components/dashboard/sidebar";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { FilterBar } from "@/components/dashboard/filter-bar";
 import { ProductCard } from "@/components/dashboard/product-card";
+import { ProductTable } from "@/components/dashboard/product-table";
 import { SearchBar } from "@/components/dashboard/search-bar";
 import { StatsRow } from "@/components/dashboard/stats-row";
 import { ErrorPanel } from "@/components/ui/error-panel";
@@ -20,6 +23,7 @@ export function Dashboard() {
   const loadCatalog = useCatalogStore((state) => state.loadCatalog);
   const category = useCatalogStore((state) => state.filters.category);
   const select = useCatalogStore((state) => state.select);
+  const view = useCatalogStore((state) => state.view);
   const all = useAllProducts();
   const visible = useVisibleProducts();
 
@@ -69,6 +73,8 @@ export function Dashboard() {
             <ErrorPanel title="Couldn't load the catalog" message={error ?? "Unknown error"} onRetry={() => void loadCatalog({ force: true })} />
           )}
 
+          {!loading && status !== "error" && <FilterBar resultCount={visible.length} />}
+
           <SectionBoundary name="Product grid">
             {loading ? (
               <>
@@ -79,6 +85,10 @@ export function Dashboard() {
                 )}
                 <ProductGridSkeleton />
               </>
+            ) : visible.length === 0 ? (
+              status === "ready" && <EmptyState />
+            ) : view === "table" ? (
+              <ProductTable products={visible} onSelect={select} />
             ) : (
               <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {visible.map((product) => (

@@ -72,3 +72,10 @@ body {
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
